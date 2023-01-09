@@ -15,7 +15,6 @@ end;
 procedure TForm2.FOnChangeOrder(Sender: TObject);
 begin
   Memo1.Lines.Add('FOnChangeOrder');
-  ProgressBar1.Value := 100 / Layout1.ControlsCount * StackAnimate.GetItemOrder(ProgressBar1);
 end;
 
 procedure TForm2.FOnEndOrder(Sender: TObject; WasChanged: Boolean);
