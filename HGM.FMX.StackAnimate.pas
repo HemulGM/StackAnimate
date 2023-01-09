@@ -56,7 +56,7 @@ type
     /// <summary>
     /// Обинвить список контролов родителя
     /// </summary>
-    procedure UpdateList;
+    procedure UpdateList(Animate: Boolean = True);
     /// <summary>
     /// Ручное управление. Начало перемещения контрола
     /// </summary>
@@ -374,14 +374,14 @@ begin
   FVerticalGap := Value;
 end;
 
-procedure TStackAnimate.UpdateList;
+procedure TStackAnimate.UpdateList(Animate: Boolean);
 begin
   if not CheckParent then
     Exit;
   FItems.Clear;
   for var Control in Container.Controls do
     FItems.Add(Control);
-  UpdateStack(True);
+  UpdateStack(Animate);
 end;
 
 function TStackAnimate.CompareArray(const Left, Right: TArray<TControl>): Boolean;
