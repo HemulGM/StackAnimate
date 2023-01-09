@@ -4,7 +4,8 @@ interface
 
 uses
   System.Classes, System.SysUtils, System.Generics.Defaults,
-  System.Generics.Collections, FMX.Controls, System.Types, FMX.Types, FMX.Ani;
+  System.Generics.Collections, FMX.Controls, System.Types, FMX.Types, FMX.Ani,
+  System.UITypes;
 
 type
   TOnEndOrder = procedure(Sender: TObject; WasChanged: Boolean) of object;
@@ -40,6 +41,10 @@ type
     procedure SetOnEndOrder(const Value: TOnEndOrder);
     procedure DoOnEndOrder;
     function GetItem(Index: Integer): TControl;
+    procedure HookMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+    procedure HookMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
+    procedure HookMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+    function GetCount: Integer;
     property Container: TControl read FContainer;
   public
     constructor Create(AOwner: TComponent); override;
@@ -50,6 +55,8 @@ type
     procedure StopMoving(Control: TControl);
     procedure MoveControl(Control: TControl);
     procedure UpdateStack(Animate: Boolean);
+    //
+    procedure HookAllControls;
     //
     property AnimationDuration: Single read FAnimationDuration write SetAnimationDuration;
     property AnimationInterpolationType: TInterpolationType read FAnimationInterpolationType write SetAnimationInterpolationType;
@@ -63,6 +70,7 @@ type
     property OnEndOrder: TOnEndOrder read FOnEndOrder write SetOnEndOrder;
     property LastChange: TLastChange read FLastChange;
     property Items[Index: Integer]: TControl read GetItem;
+    property Count: Integer read GetCount;
   end;
 
 implementation
@@ -119,6 +127,11 @@ begin
   inherited;
 end;
 
+function TStackAnimate.GetCount: Integer;
+begin
+  Result := FItems.Count;
+end;
+
 function TStackAnimate.GetItem(Index: Integer): TControl;
 begin
   Result := FItems[Index];
@@ -134,6 +147,40 @@ begin
   Result := FItems.ToArray;
 end;
 
+procedure TStackAnimate.HookAllControls;
+begin
+  for var Item in FItems do
+  begin
+    Item.OnMouseDown := HookMouseDown;
+    Item.OnMouseMove := HookMouseMove;
+    Item.OnMouseUp := HookMouseUp;
+    Item.HitTest := True;
+  end;
+end;
+
+procedure TStackAnimate.HookMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+var
+  Control: TControl absolute Sender;
+begin
+  if Button = TMouseButton.mbLeft then
+    StartMoving(Control);
+end;
+
+procedure TStackAnimate.HookMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
+var
+  Control: TControl absolute Sender;
+begin
+  MoveControl(Control);
+end;
+
+procedure TStackAnimate.HookMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+var
+  Control: TControl absolute Sender;
+begin
+  if Button = TMouseButton.mbLeft then
+    StopMoving(Control);
+end;
+
 procedure TStackAnimate.MoveControl(Control: TControl);
 begin
   if not FMoving then
@@ -146,6 +193,8 @@ procedure TStackAnimate.StartMoving(Control: TControl);
 begin
   if not CheckParent then
     Exit;
+  if Assigned(Control.Root) then
+    Control.Root.Captured := Control;
   FSavedOrder := FItems.ToArray;
   FMoving := True;
   FMousePos := Screen.MousePos;
