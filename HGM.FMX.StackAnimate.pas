@@ -30,6 +30,7 @@ type
     FOnEndOrder: TOnEndOrder;
     FSavedOrder: TArray<TControl>;
     FLastChange: TLastChange;
+    FAnimateSelected: Boolean;
     function CheckParent: Boolean;
     procedure SetItemPos(const Index: Integer; Animate: Boolean);
     procedure SetAnimationDuration(const Value: Single);
@@ -45,32 +46,75 @@ type
     procedure HookMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
     procedure HookMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
     function GetCount: Integer;
+    procedure SetAnimateSelected(const Value: Boolean);
+    procedure AnimateFloatProp(const Target: TFmxObject; const APropertyName: string; const NewValue: Single; Duration: Single = 0.2; AType: TAnimationType = TAnimationType.in; AInterpolation: TInterpolationType = TInterpolationType.Linear);
     property Container: TControl read FContainer;
+    procedure UpdateStack(Animate: Boolean);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    //
+    /// <summary>
+    /// Обинвить список контролов родителя
+    /// </summary>
     procedure UpdateList;
+    /// <summary>
+    /// Ручное управление. Начало перемещения контрола
+    /// </summary>
     procedure StartMoving(Control: TControl);
+    /// <summary>
+    /// Ручное управление. Завершение перемещения контрола
+    /// </summary>
     procedure StopMoving(Control: TControl);
+    /// <summary>
+    /// Ручное управление. Перемещение контрола
+    /// </summary>
     procedure MoveControl(Control: TControl);
-    procedure UpdateStack(Animate: Boolean);
-    //
+    /// <summary>
+    /// Перехватить события OnMouseDown, OnMouseMove и OnMouseUp и установить совйтсов HitTest в True всех имеющихся контролов
+    /// </summary>
     procedure HookAllControls;
-    //
+    /// <summary>
+    /// Длительность анимации
+    /// </summary>
     property AnimationDuration: Single read FAnimationDuration write SetAnimationDuration;
+    /// <summary>
+    /// Тип анимации
+    /// </summary>
     property AnimationInterpolationType: TInterpolationType read FAnimationInterpolationType write SetAnimationInterpolationType;
-    //
+    /// <summary>
+    /// Вертикальный отступ между элементами
+    /// </summary>
     property VerticalGap: Single read FVerticalGap write SetVerticalGap;
-    //
+    /// <summary>
+    /// Получить актуальный индекс конкретного контрола
+    /// </summary>
     function GetItemOrder(Control: TControl): Integer;
+    /// <summary>
+    /// Получить список контролов в актуальном порядке
+    /// </summary>
     function GetItems: TArray<TControl>;
-    //
+    /// <summary>
+    /// Происходит на каждое изменении позиции (не координат) в списке
+    /// </summary>
     property OnChangeOrder: TNotifyEvent read FOnChangeOrder write SetOnChangeOrder;
+    /// <summary>
+    /// Происходит при завершении перемещения контрола (отпускание мыши).
+    /// Передает информацию о том, были ли изменения или нет
+    /// </summary>
     property OnEndOrder: TOnEndOrder read FOnEndOrder write SetOnEndOrder;
+    /// <summary>
+    /// Информация о последнем изменении позиции элемента
+    /// </summary>
     property LastChange: TLastChange read FLastChange;
+    /// <summary>
+    /// Получить контрол по индексу (например из LastChange)
+    /// </summary>
     property Items[Index: Integer]: TControl read GetItem;
+    /// <summary>
+    /// Кол-во контролов
+    /// </summary>
     property Count: Integer read GetCount;
+    property AnimateSelected: Boolean read FAnimateSelected write SetAnimateSelected;
   end;
 
 implementation
@@ -119,6 +163,7 @@ begin
   FAnimationDuration := 0.2;
   FAnimationInterpolationType := TInterpolationType.Linear;
   FVerticalGap := 5;
+  FAnimateSelected := True;
 end;
 
 destructor TStackAnimate.Destroy;
@@ -202,6 +247,13 @@ begin
   FLastChange.OldIndex := FItems.IndexOf(Control);
   FSavePos := Control.Position.Point;
   Control.BringToFront;
+
+  if AnimateSelected then
+  begin
+    TAnimator.AnimateFloat(Control, 'Scale.X', 0.9);
+    TAnimator.AnimateFloat(Control, 'Scale.Y', 0.9);
+    TAnimator.AnimateFloat(Control, 'RotationAngle', 5);
+  end;
 end;
 
 procedure TStackAnimate.StopMoving(Control: TControl);
@@ -213,12 +265,24 @@ begin
   UpdateStack(True);
   FLastChange.NewIndex := FItems.IndexOf(Control);
   DoOnEndOrder;
+
+  if AnimateSelected then
+  begin
+    TAnimator.AnimateFloat(Control, 'Scale.X', 1);
+    TAnimator.AnimateFloat(Control, 'Scale.Y', 1);
+    TAnimator.AnimateFloat(Control, 'RotationAngle', 0);
+  end;
 end;
 
 procedure TStackAnimate.DoOnEndOrder;
 begin
   if Assigned(FOnEndOrder) then
     FOnEndOrder(Self, not CompareArray(FSavedOrder, FItems.ToArray));
+end;
+
+procedure TStackAnimate.SetAnimateSelected(const Value: Boolean);
+begin
+  FAnimateSelected := Value;
 end;
 
 procedure TStackAnimate.SetAnimationDuration(const Value: Single);
@@ -231,6 +295,36 @@ begin
   FAnimationInterpolationType := Value;
 end;
 
+procedure TStackAnimate.AnimateFloatProp(const Target: TFmxObject; const APropertyName: string; const NewValue: Single; Duration: Single = 0.2; AType: TAnimationType = TAnimationType.in; AInterpolation: TInterpolationType = TInterpolationType.Linear);
+begin
+  var i := Target.ChildrenCount - 1;
+  var Animate: TFloatAnimation := nil;
+  while i >= 0 do
+  begin
+    if (Target.Children[i] is TFloatAnimation) and
+      (CompareText(TFloatAnimation(Target.Children[i]).PropertyName, APropertyName) = 0)
+      then
+      Animate := TFloatAnimation(Target.Children[i]);
+    if i > Target.ChildrenCount then
+      i := Target.ChildrenCount;
+    Dec(i);
+  end;
+
+  if Assigned(Animate) then
+  begin
+    if Animate.StartValue = NewValue then
+      Exit;
+    Animate.StopAtCurrent;
+  end;
+
+  TAnimator.AnimateFloat(Target,
+    APropertyName,
+    NewValue,
+    Duration,
+    AType,
+    AInterpolation);
+end;
+
 procedure TStackAnimate.SetItemPos(const Index: Integer; Animate: Boolean);
 begin
   var Item := FItems[Index];
@@ -239,21 +333,22 @@ begin
   for var i := 0 to Pred(Index) do
     if FItems[i] <> Item then
     begin
-      HOffset := HOffset + FItems[i].Height;
+      HOffset := HOffset + FItems[i].Height + FItems[i].Margins.Bottom + FItems[i].Margins.Top;
       Inc(ItemCount);
     end;
   var NPos := TPointF.Create(0, HOffset + ItemCount * FVerticalGap);
   NPos.Offset(Container.Padding.Left, Container.Padding.Top);
+  NPos.Offset(Item.Margins.Left, Item.Margins.Top);
   if Item.Position.Point <> NPos then
   begin
     if Animate then
     begin
-      TAnimator.AnimateFloat(Item, 'Position.Y',
+      AnimateFloatProp(Item, 'Position.Y',
         NPos.Y,
         FAnimationDuration,
         TAnimationType.InOut,
         FAnimationInterpolationType);
-      TAnimator.AnimateFloat(Item, 'Position.X',
+      AnimateFloatProp(Item, 'Position.X',
         NPos.X,
         FAnimationDuration,
         TAnimationType.InOut,
@@ -323,10 +418,7 @@ begin
 
   for var i := 0 to Pred(FItems.Count) do
     if FItems[i] <> FMovingBtn then
-    begin
-      StopAnimation(FItems[i], 'Position.Y');
       SetItemPos(i, Animate);
-    end;
 end;
 
 end.
