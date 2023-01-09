@@ -1,37 +1,28 @@
 # StackAnimate
  
 ```pascal
-Create
-
-StackAnimate := TStackAnimate.Create(Layout1);
-StackAnimate.AnimationDuration := 0.1;
-Layout1.AddObject(StackAnimate);
-StackAnimate.UpdateList;
-StackAnimate.OnChangeOrder := FOnChangeOrder;
-StackAnimate.OnEndOrder := FOnEndOrder;
-
-Work
-
-procedure TForm2.Button1MouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
-var
-  Btn: TButton absolute Sender;
+procedure TForm2.FormCreate(Sender: TObject);
 begin
-  if Button = TMouseButton.mbLeft then
-    StackAnimate.StartMoving(Btn);
+  StackAnimate := TStackAnimate.Create(Layout1);
+  StackAnimate.AnimationDuration := 0.1;
+  Layout1.AddObject(StackAnimate);
+  StackAnimate.UpdateList;
+  StackAnimate.OnChangeOrder := FOnChangeOrder;
+  StackAnimate.OnEndOrder := FOnEndOrder;
+  StackAnimate.HookAllControls;
 end;
 
-procedure TForm2.Button1MouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
-var
-  Btn: TButton absolute Sender;
+procedure TForm2.FOnChangeOrder(Sender: TObject);
 begin
-  StackAnimate.MoveControl(Btn);
+  Memo1.Lines.Add('FOnChangeOrder');
+  ProgressBar1.Value := 100 / Layout1.ControlsCount * StackAnimate.GetItemOrder(ProgressBar1);
 end;
 
-procedure TForm2.Button1MouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
-var
-  Btn: TButton absolute Sender;
+procedure TForm2.FOnEndOrder(Sender: TObject; WasChanged: Boolean);
 begin
-  if Button = TMouseButton.mbLeft then
-    StackAnimate.StopMoving(Btn);
+  if WasChanged then
+    Memo1.Lines.Add('WasChanged ' +
+      StackAnimate.Items[StackAnimate.LastChange.NewIndex].Name + ' to ' +
+      StackAnimate.LastChange.NewIndex.ToString);
 end;
 ```
