@@ -1,5 +1,5 @@
 # StackAnimate
- 
+
 ```pascal
 procedure TForm2.FormCreate(Sender: TObject);
 begin
@@ -25,3 +25,5 @@ begin
       StackAnimate.LastChange.NewIndex.ToString);
 end;
 ```
+ 
+![Sample](https://github.com/HemulGM/StackAnimate/raw/main/media/ezgif-5-e5854c1030.gif)
