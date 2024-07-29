@@ -31,6 +31,7 @@ type
     FSavedOrder: TArray<TControl>;
     FLastChange: TLastChange;
     FAnimateSelected: Boolean;
+    FOrientation: TOrientation;
     function CheckParent: Boolean;
     procedure SetItemPos(const Index: Integer; Animate: Boolean);
     procedure SetAnimationDuration(const Value: Single);
@@ -48,6 +49,8 @@ type
     function GetCount: Integer;
     procedure SetAnimateSelected(const Value: Boolean);
     procedure AnimateFloatProp(const Target: TFmxObject; const APropertyName: string; const NewValue: Single; Duration: Single = 0.2; AType: TAnimationType = TAnimationType.in; AInterpolation: TInterpolationType = TInterpolationType.Linear);
+    procedure SetOrientation(const Value: TOrientation);
+    function GetIsMoving: Boolean;
     property Container: TControl read FContainer;
     procedure UpdateStack(Animate: Boolean);
   public
@@ -114,7 +117,9 @@ type
     /// Кол-во контролов
     /// </summary>
     property Count: Integer read GetCount;
+    property IsMoving: Boolean read GetIsMoving;
     property AnimateSelected: Boolean read FAnimateSelected write SetAnimateSelected;
+    property Orientation: TOrientation read FOrientation write SetOrientation;
   end;
 
 implementation
@@ -164,6 +169,7 @@ begin
   FAnimationInterpolationType := TInterpolationType.Linear;
   FVerticalGap := 5;
   FAnimateSelected := True;
+  FOrientation := TOrientation.Vertical;
 end;
 
 destructor TStackAnimate.Destroy;
@@ -175,6 +181,11 @@ end;
 function TStackAnimate.GetCount: Integer;
 begin
   Result := FItems.Count;
+end;
+
+function TStackAnimate.GetIsMoving: Boolean;
+begin
+  Result := FMoving;
 end;
 
 function TStackAnimate.GetItem(Index: Integer): TControl;
@@ -230,7 +241,13 @@ procedure TStackAnimate.MoveControl(Control: TControl);
 begin
   if not FMoving then
     Exit;
-  Control.Position.Y := FSavePos.Y - (FMousePos.Y - Screen.MousePos.Y);
+  case FOrientation of
+    TOrientation.Horizontal:
+      Control.Position.X := FSavePos.X - (FMousePos.X - Screen.MousePos.X);
+    TOrientation.Vertical:
+      Control.Position.Y := FSavePos.Y - (FMousePos.Y - Screen.MousePos.Y);
+  end;
+
   UpdateStack(True);
 end;
 
@@ -312,7 +329,7 @@ begin
 
   if Assigned(Animate) then
   begin
-    if Animate.StartValue = NewValue then
+    if Animate.StopValue = NewValue then
       Exit;
     Animate.StopAtCurrent;
   end;
@@ -330,13 +347,31 @@ begin
   var Item := FItems[Index];
   var HOffset := 0.0;
   var ItemCount := 0;
-  for var i := 0 to Pred(Index) do
-    if FItems[i] <> Item then
-    begin
-      HOffset := HOffset + FItems[i].Height + FItems[i].Margins.Bottom + FItems[i].Margins.Top;
-      Inc(ItemCount);
-    end;
-  var NPos := TPointF.Create(0, HOffset + ItemCount * FVerticalGap);
+  var NPos: TPointF;
+
+  case FOrientation of
+    TOrientation.Horizontal:
+      begin
+        for var i := 0 to Pred(Index) do
+          if FItems[i] <> Item then
+          begin
+            HOffset := HOffset + FItems[i].Width + FItems[i].Margins.Left + FItems[i].Margins.Right;
+            Inc(ItemCount);
+          end;
+        NPos := TPointF.Create(HOffset + ItemCount * FVerticalGap, 0);
+      end;
+    TOrientation.Vertical:
+      begin
+        for var i := 0 to Pred(Index) do
+          if FItems[i] <> Item then
+          begin
+            HOffset := HOffset + FItems[i].Height + FItems[i].Margins.Bottom + FItems[i].Margins.Top;
+            Inc(ItemCount);
+          end;
+        NPos := TPointF.Create(0, HOffset + ItemCount * FVerticalGap);
+      end;
+  end;
+
   NPos.Offset(Container.Padding.Left, Container.Padding.Top);
   NPos.Offset(Item.Margins.Left, Item.Margins.Top);
   if Item.Position.Point <> NPos then
@@ -367,6 +402,11 @@ end;
 procedure TStackAnimate.SetOnEndOrder(const Value: TOnEndOrder);
 begin
   FOnEndOrder := Value;
+end;
+
+procedure TStackAnimate.SetOrientation(const Value: TOrientation);
+begin
+  FOrientation := Value;
 end;
 
 procedure TStackAnimate.SetVerticalGap(const Value: Single);
@@ -403,16 +443,31 @@ begin
   if not CheckParent then
     Exit;
   var SavedOrder := FItems.ToArray;
-  FItems.Sort(TComparer<TControl>.Construct(
-    function(const Left, Right: TControl): Integer
-    begin
-      if Left.Position.Y < Right.Position.Y then
-        Result := -1
-      else if Left.Position.Y > Right.Position.Y then
-        Result := 1
-      else
-        Result := 0;
-    end));
+  case FOrientation of
+    TOrientation.Horizontal:
+      FItems.Sort(TComparer<TControl>.Construct(
+        function(const Left, Right: TControl): Integer
+        begin
+          if Left.Position.X < Right.Position.X then
+            Result := -1
+          else if Left.Position.X > Right.Position.X then
+            Result := 1
+          else
+            Result := 0;
+        end));
+    TOrientation.Vertical:
+      FItems.Sort(TComparer<TControl>.Construct(
+        function(const Left, Right: TControl): Integer
+        begin
+          if Left.Position.Y < Right.Position.Y then
+            Result := -1
+          else if Left.Position.Y > Right.Position.Y then
+            Result := 1
+          else
+            Result := 0;
+        end));
+  end;
+
   if not CompareArray(SavedOrder, FItems.ToArray) then
     DoChangeOrder;
 
